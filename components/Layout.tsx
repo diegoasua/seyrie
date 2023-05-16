@@ -115,14 +115,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <nav className="flex flex-col space-y-4">
                             {isUploading
                                 ? (
-                                    <>
-                                        <div className="relative pt-1">
+                                    <div className="flex flex-col items-center justify-center space-y-4">
+                                        <div className="w-full text-center font-bold text-indigo-500">
+                                            Uploading video...
+                                        </div>
+                                        <div className="w-full pt-1 flex-grow">
                                             <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200">
                                                 <div style={{ width: `${uploadProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500"></div>
                                             </div>
                                         </div>
                                         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div>
-                                    </>
+                                    </div>
                                 )
                                 : (
                                     <>
