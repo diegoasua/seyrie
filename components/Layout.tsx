@@ -1,7 +1,9 @@
+import { getStorage, ref, uploadBytes } from 'firebase/storage';
 import React, { useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { RiScissors2Fill } from 'react-icons/ri';
 import { TbPointer } from 'react-icons/tb';
+import app from '../firebase';
 
 
 interface LayoutProps {
@@ -12,13 +14,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [videoUrl, setVideoUrl] = useState('https://www.w3schools.com/html/mov_bbb.mp4');
     const [isExporting, setIsExporting] = useState(false);
 
-    const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
 
         if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
             const file = event.dataTransfer.items[0].getAsFile();
-            const url = URL.createObjectURL(file);
-            setVideoUrl(url);
+
+            if (file) { // Check if file is not null
+                const url = URL.createObjectURL(file);
+                setVideoUrl(url);
+
+                // Upload to Firebase Storage
+                const storage = getStorage(app);
+                const storageRef = ref(storage, 'raw-upload/' + file.name);
+                await uploadBytes(storageRef, file).then(() => {
+                    console.log('Uploaded ', file.name);
+                }).catch((error) => {
+                    console.error('Error uploading file: ', error);
+                });
+            } else {
+                console.error('Error: File is null');
+            }
         }
     };
 
@@ -39,13 +55,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div className="mx-auto py-8 px-4">
                     <nav className="flex space-x-4">
                         <button
-                            className={`px-8 py-4 font-semibold hover:bg-gray-200 rounded-md border border-indigo-500 text-xl ${isExporting ? 'text-indigo-500 bg-white' : 'text-white bg-indigo-500'}`}
+                            className={`px-8 py-4 font-semibold rounded-md border border-indigo-500 text-xl ${isExporting ? 'text-indigo-500 bg-white' : 'text-white bg-indigo-500'}`}
                             onClick={handleClickStory}
                         >
                             Story
                         </button>
                         <button
-                            className={`px-6 py-4 font-semibold hover:bg-gray-200 rounded-md border border-indigo-500 text-xl ${isExporting ? 'text-white bg-indigo-500' : 'text-indigo-500 bg-white'}`}
+                            className={`px-6 py-4 font-semibold rounded-md border border-indigo-500 text-xl ${isExporting ? 'text-white bg-indigo-500' : 'text-indigo-500 bg-white'}`}
                             onClick={handleClickExport}
                         >
                             Export
@@ -71,16 +87,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </div>
 
                     <div className="flex items-start justify-center p-4 py-14">
-                        <video
-                            className="w-full h-auto max-h-full rounded-md shadow-lg"
-                            controls
-                            src={videoUrl}
-                            type="video/mp4"
-                        >
+                        <video className="w-full h-auto max-h-full rounded-md shadow-lg" controls>
+                            <source src={videoUrl} type="video/mp4" />
                             Your browser does not support the video tag.
                         </video>
                     </div>
-                    {/* remove invisible to show */}
                     <div className={`flex items-center justify-center p-4 py-14 ${isExporting ? '' : 'invisible'}`}>
                         <nav className="flex flex-col space-y-4">
                             <button className="px-8 py-4 font-semibold text-indigo-500 bg-white hover:bg-gray-200 rounded-md border border-indigo-500 text-xl">
