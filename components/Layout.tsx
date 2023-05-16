@@ -19,13 +19,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
+        event.stopPropagation();
 
         if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
             const file = event.dataTransfer.items[0].getAsFile();
 
             if (file) { // Check if file is not null
                 const url = URL.createObjectURL(file);
-                setVideoUrl(url);
+                setVideoUrl(url); // Set local URL immediately
 
                 // Upload to Firebase Storage
                 const storage = getStorage(app);
@@ -46,7 +47,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         // Handle unsuccessful uploads
                         console.error('Error uploading file: ', error);
                     },
-                    () => {
+                    async () => {
                         // Handle successful uploads on complete
                         console.log('Uploaded ', file.name);
                         setIsUploading(false); // Stop uploading
@@ -59,9 +60,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }
     };
 
-
     const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
+        event.stopPropagation();
     };
     const handleClickStory = () => {
         setIsExporting(false);
@@ -105,11 +106,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             />
                         </div>
                     </div>
-                    <div className="flex items-start justify-center p-4 py-14">
-                        <video className="w-full h-auto max-h-full rounded-md shadow-lg" controls>
-                            <source src={videoUrl} type="video/mp4" />
-                            Your browser does not support the video tag.
-                        </video>
+                    <div>
+                        <div className="flex items-start justify-center p-4 py-14">
+                            <video className="w-full h-auto max-h-full rounded-md shadow-lg" controls src={videoUrl}>
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
                     </div>
                     <div className={`flex items-center justify-center p-4 py-14 ${isExporting || isUploading ? '' : 'invisible'}`}>
                         <nav className="flex flex-col space-y-4">
