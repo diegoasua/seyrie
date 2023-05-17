@@ -1,4 +1,5 @@
-import { getStorage, ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
+import axios from 'axios';
+import { getDownloadURL, getStorage, ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
 import React, { useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { RiScissors2Fill } from 'react-icons/ri';
@@ -6,9 +7,23 @@ import { TbPointer } from 'react-icons/tb';
 import app from '../firebase';
 
 
+
 interface LayoutProps {
     children: React.ReactNode;
 }
+
+const transcribeVideo = async (videoName: string) => {
+    try {
+        const response = await axios.post('https://us-central1-potent-pursuit-386804.cloudfunctions.net/transcribeVideo', {
+            videoName: videoName
+        });
+
+        console.log(response.data);
+    } catch (error) {
+        console.error('Error:', error);
+    }
+};
+
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [videoUrl, setVideoUrl] = useState('https://www.w3schools.com/html/mov_bbb.mp4');
@@ -35,6 +50,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         //         console.error('Error:', error);
         //     });
         // end of call
+
+
+        // TODO: call this function somewhere
+        transcribeVideo('altman_example_short.mp4');
+        // end for function call
+
         if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
             const file = event.dataTransfer.items[0].getAsFile();
 
@@ -83,6 +104,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             }
         }
     };
+
+    const handleProcessedVideo = async () => {
+        const storage = getStorage(app);
+
+        // If the video name starts with "processed_", use the video name. Otherwise, prepend "processed_" to the video name.
+        let videoName = videoUrl.split('/').pop()!;
+        if (!videoName.startsWith("processed_")) {
+            videoName = "processed_" + videoName;
+        }
+
+        // Construct the full path to the video in Firebase Storage.
+        const videoRef = ref(storage, 'uploads/' + videoName);
+
+        try {
+            // Get the download URL for the video.
+            const url = await getDownloadURL(videoRef);
+            setVideoUrl(url);
+        } catch (error) {
+            console.error('Error fetching video: ', error);
+        }
+    };
+
 
     const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
@@ -173,6 +216,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
                 <div className="items-center justify-center h-32 flex items-start bg-gray-200 relative" onDrop={onDrop} onDragOver={onDragOver}>
                     <div className="text-center text-4xl font-bold text-gray-500">Drop a video to start editing</div>
+                    <div>
+                        <button onClick={handleProcessedVideo}>Get Processed Video</button>
+                    </div>
                     <div className="absolute top-0 left-0 bottom-0 w-8 bg-gray-300 border-r-2 border-t-2 border-black flex items-center justify-top flex-col">
                         <TbPointer className="mt-4 mb-2" />
                         <RiScissors2Fill />
