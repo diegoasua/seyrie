@@ -2,8 +2,6 @@ import axios from 'axios';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
 import React, { useEffect, useRef, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
-import { RiScissors2Fill } from 'react-icons/ri';
-import { TbPointer } from 'react-icons/tb';
 import app from '../firebase';
 
 
@@ -112,7 +110,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
 
     const handleProcessedVideo = async () => {
-        transcribeVideo('processed_altman_example_short.mp4')
         const storage = getStorage(app);
 
         setTimeout(async () => {
@@ -151,7 +148,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             } catch (error) {
                 console.error('Error fetching video: ', error);
             }
-        }, 20000); // 20000 milliseconds = 20 seconds
+        }, 25000); // 25000 milliseconds = 20 seconds
     };
 
 
@@ -196,9 +193,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             />
                             <input
                                 type="text"
-                                className="pl-8 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder=""
+                                className="pl-8 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                                placeholder="What do you need help with?"
                             />
+                            <h4 className="text-lg font-bold mt-6">Try one of these commands</h4>
+                            <p className="mt-4">Cut out silences and filler words</p>
+                            <p className="mt-4">Add captions</p>
                         </div>
                     </div>
                     <div>
@@ -206,7 +206,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             <video className="w-full h-auto max-h-full rounded-md shadow-lg" controls src={videoUrl}>
                                 {captionUrl && <track kind="captions"
                                     src={captionUrl}
-                                    srcLang="en"  // Assuming the captions are in English
+                                    srcLang="en"
                                     label="English"
                                     default />}
                                 Your browser does not support the video tag.
@@ -249,10 +249,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
                 <div className="items-center justify-center h-32 flex items-start bg-gray-200 relative" onDrop={onDrop} onDragOver={onDragOver}>
                     <div className="text-center text-4xl font-bold text-gray-500">Drop a video to start editing</div>
-                    <div className="absolute top-0 left-0 bottom-0 w-8 bg-gray-300 border-r-2 border-t-2 border-black flex items-center justify-top flex-col">
+                    {/* <div className="absolute top-0 left-0 bottom-0 w-8 bg-gray-300 border-r-2 border-t-2 border-black flex items-center justify-top flex-col">
                         <TbPointer className="mt-4 mb-2" />
                         <RiScissors2Fill />
-                    </div>
+                    </div> */}
                 </div>
             </main>
         </div>
