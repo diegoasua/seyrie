@@ -1,0 +1,5 @@
+moviepy==1.0.3
+flask
+flask-cors
+google-cloud-storage
+numpy
