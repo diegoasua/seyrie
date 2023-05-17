@@ -1,11 +1,10 @@
 import axios from 'axios';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { RiScissors2Fill } from 'react-icons/ri';
 import { TbPointer } from 'react-icons/tb';
 import app from '../firebase';
-
 
 
 interface LayoutProps {
@@ -26,35 +25,39 @@ const transcribeVideo = async (videoName: string) => {
 
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-    const [videoUrl, setVideoUrl] = useState('https://www.w3schools.com/html/mov_bbb.mp4');
+    const [videoUrl, setVideoUrl] = useState('');
+    const [videoNameDisplay, setVideoNameDisplay] = useState('processed_altman_example_short.mp4');
+    const [captionUrl, setCaptionUrl] = useState('');
     const [isExporting, setIsExporting] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadTask, setUploadTask] = useState<UploadTask | null>(null);
+    const currentCaptionUrl = useRef<string | null>(null);
 
+    useEffect(() => {
+        return () => {
+            if (currentCaptionUrl.current) {
+                URL.revokeObjectURL(currentCaptionUrl.current);
+            }
+        };
+    }, []);
 
     const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.stopPropagation();
         // start of call
-        // fetch('https://auto-cut-myxlwik5bq-uw.a.run.app/process_video', {
-        //     method: 'POST',
+        // axios.post('https://auto-cut-myxlwik5bq-uw.a.run.app/process_video', { filename: 'IMG_0887.mov' }, {
         //     headers: {
         //         'Content-Type': 'application/json'
         //     },
-        //     body: JSON.stringify({ filename: 'IMG_0887.mov' })
+        //     withCredentials: true
         // })
-        //     .then(response => response.json())
-        //     .then(data => console.log(data))
-        //     .catch((error) => {
+        //     .then(response => {
+        //         console.log(response.data);
+        //     })
+        //     .catch(error => {
         //         console.error('Error:', error);
         //     });
-        // end of call
-
-
-        // TODO: call this function somewhere
-        transcribeVideo('altman_example_short.mp4');
-        // end for function call
 
         if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
             const file = event.dataTransfer.items[0].getAsFile();
@@ -94,9 +97,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     async () => {
                         // Handle successful uploads on complete
                         console.log('Uploaded ', file.name);
+                        setVideoNameDisplay(file.name);
                         setIsUploading(false);
                         setUploadProgress(0);
                         setUploadTask(null);
+                        handleProcessedVideo();
+                        // transcribeVideo('altman_example_short.mp4');
                     }
                 );
             } else {
@@ -106,24 +112,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
 
     const handleProcessedVideo = async () => {
+        transcribeVideo('processed_altman_example_short.mp4')
         const storage = getStorage(app);
 
-        // If the video name starts with "processed_", use the video name. Otherwise, prepend "processed_" to the video name.
-        let videoName = videoUrl.split('/').pop()!;
-        if (!videoName.startsWith("processed_")) {
-            videoName = "processed_" + videoName;
-        }
+        setTimeout(async () => {
+            let videoName = "processed_" + videoNameDisplay;
 
-        // Construct the full path to the video in Firebase Storage.
-        const videoRef = ref(storage, 'uploads/' + videoName);
+            const videoRef = ref(storage, 'uploads/' + videoName);
 
-        try {
-            // Get the download URL for the video.
-            const url = await getDownloadURL(videoRef);
-            setVideoUrl(url);
-        } catch (error) {
-            console.error('Error fetching video: ', error);
-        }
+            try {
+                const url = await getDownloadURL(videoRef);
+                setVideoUrl(url);
+
+                let captionName = "captions.vtt";
+                const captionRef = ref(storage, 'uploads/' + captionName);
+
+                try {
+                    const captionUrl = await getDownloadURL(captionRef);
+                    axios({
+                        url: captionUrl,
+                        method: 'GET',
+                        responseType: 'blob', // important
+                    }).then((response) => {
+                        const localUrl = URL.createObjectURL(new Blob([response.data]));
+                        if (currentCaptionUrl.current) {
+                            URL.revokeObjectURL(currentCaptionUrl.current);
+                        }
+                        currentCaptionUrl.current = localUrl;
+                        setCaptionUrl(localUrl);
+                    }).catch((error) => {
+                        console.error('Error fetching caption: ', error);
+                        setCaptionUrl("");
+                    });
+                } catch (captionError) {
+                    console.error('Error fetching caption: ', captionError);
+                    setCaptionUrl("");
+                }
+            } catch (error) {
+                console.error('Error fetching video: ', error);
+            }
+        }, 20000); // 20000 milliseconds = 20 seconds
     };
 
 
@@ -176,6 +204,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <div>
                         <div className="flex items-start justify-center p-4 py-14">
                             <video className="w-full h-auto max-h-full rounded-md shadow-lg" controls src={videoUrl}>
+                                {captionUrl && <track kind="captions"
+                                    src={captionUrl}
+                                    srcLang="en"  // Assuming the captions are in English
+                                    label="English"
+                                    default />}
                                 Your browser does not support the video tag.
                             </video>
                         </div>
@@ -216,9 +249,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </div>
                 <div className="items-center justify-center h-32 flex items-start bg-gray-200 relative" onDrop={onDrop} onDragOver={onDragOver}>
                     <div className="text-center text-4xl font-bold text-gray-500">Drop a video to start editing</div>
-                    <div>
-                        <button onClick={handleProcessedVideo}>Get Processed Video</button>
-                    </div>
                     <div className="absolute top-0 left-0 bottom-0 w-8 bg-gray-300 border-r-2 border-t-2 border-black flex items-center justify-top flex-col">
                         <TbPointer className="mt-4 mb-2" />
                         <RiScissors2Fill />

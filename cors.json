@@ -1,0 +1,14 @@
+[
+    {
+        "origin": [
+            "https://app.seyrie.com"
+        ],
+        "responseHeader": [
+            "Content-Type"
+        ],
+        "method": [
+            "GET"
+        ],
+        "maxAgeSeconds": 3600
+    }
+]
