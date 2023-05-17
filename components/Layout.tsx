@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
 import React, { useEffect, useRef, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
-import app from '../firebase';
+import { app } from '../firebase';
 
 
 interface LayoutProps {
@@ -24,13 +24,17 @@ const transcribeVideo = async (videoName: string) => {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [videoUrl, setVideoUrl] = useState('');
-    const [videoNameDisplay, setVideoNameDisplay] = useState('processed_altman_example_short.mp4');
+    const [videoNameDisplay, setVideoNameDisplay] = useState('altman_lex.mp4');
     const [captionUrl, setCaptionUrl] = useState('');
     const [isExporting, setIsExporting] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadTask, setUploadTask] = useState<UploadTask | null>(null);
     const currentCaptionUrl = useRef<string | null>(null);
+    const [userInput, setUserInput] = useState('');
+    const [output, setOutput] = useState('');
+
+
 
     useEffect(() => {
         return () => {
@@ -148,7 +152,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             } catch (error) {
                 console.error('Error fetching video: ', error);
             }
-        }, 25000); // 25000 milliseconds = 20 seconds
+        }, 35000); // 35000 milliseconds = 35 seconds
+    };
+
+    const handleSearch = async () => {
+        try {
+            const response = await axios.post('https://us-central1-potent-pursuit-386804.cloudfunctions.net/callOpenAI', {
+                systemPrompt: 'You are a natural language assistant in a video editor. You are given natural language instructions from the user and have to choose which tools to apply to the video based on that. The possible tools are: auto-cut and auto-caption. You will reply only with numbers and tool names, indicating the order in which tools have to be applied, nothing more. For example. User input: my video is too long. Output: 1. auto-cut',
+                userInput,
+            });
+
+            const data = response.data;
+            setOutput(data);
+        } catch (error) {
+            console.error(error);
+        }
     };
 
 
@@ -188,17 +206,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <h2 className="text-xl font-semibold mb-4">Seyrie</h2>
                         <div className="relative">
                             <FaSearch
-                                onClick={() => console.log("Command search clicked")}
+                                onClick={handleSearch}
                                 className="absolute top-2.5 left-2 text-gray-400 cursor-pointer"
                             />
                             <input
                                 type="text"
+                                value={userInput}
+                                onChange={(e) => setUserInput(e.target.value)}
                                 className="pl-8 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full"
                                 placeholder="What do you need help with?"
                             />
                             <h4 className="text-lg font-bold mt-6">Try one of these commands</h4>
                             <p className="mt-4">Cut out silences and filler words</p>
                             <p className="mt-4">Add captions</p>
+                            <div className="mt-4">
+                                <p>{output}</p>
+                            </div>
+
                         </div>
                     </div>
                     <div>
