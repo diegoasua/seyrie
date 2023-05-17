@@ -1,4 +1,4 @@
-import { getStorage, ref, uploadBytesResumable } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
 import React, { useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { RiScissors2Fill } from 'react-icons/ri';
@@ -14,13 +14,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [videoUrl, setVideoUrl] = useState('https://www.w3schools.com/html/mov_bbb.mp4');
     const [isExporting, setIsExporting] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadTask, setUploadTask] = useState<UploadTask | null>(null);
+
 
     const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.stopPropagation();
-
+        // start of call
+        // fetch('https://auto-cut-myxlwik5bq-uw.a.run.app/process_video', {
+        //     method: 'POST',
+        //     headers: {
+        //         'Content-Type': 'application/json'
+        //     },
+        //     body: JSON.stringify({ filename: 'IMG_0887.mov' })
+        // })
+        //     .then(response => response.json())
+        //     .then(data => console.log(data))
+        //     .catch((error) => {
+        //         console.error('Error:', error);
+        //     });
+        // end of call
         if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
             const file = event.dataTransfer.items[0].getAsFile();
 
@@ -35,6 +49,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 setIsUploading(true); // Start uploading
 
                 const uploadTask = uploadBytesResumable(storageRef, file);
+                setUploadTask(uploadTask);
+
 
                 uploadTask.on('state_changed',
                     (snapshot) => {
@@ -45,13 +61,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     },
                     (error) => {
                         // Handle unsuccessful uploads
-                        console.error('Error uploading file: ', error);
+                        if (error.code === 'storage/canceled') {
+                            console.log('Upload cancelled by user');
+                        } else {
+                            console.error('Error uploading file: ', error);
+                        }
+                        setIsUploading(false); // Stop uploading
+                        setUploadProgress(0); // Reset progress
+                        setUploadTask(null); // Clear upload task
                     },
                     async () => {
                         // Handle successful uploads on complete
                         console.log('Uploaded ', file.name);
-                        setIsUploading(false); // Stop uploading
-                        setUploadProgress(0); // Reset progress
+                        setIsUploading(false);
+                        setUploadProgress(0);
+                        setUploadTask(null);
                     }
                 );
             } else {
@@ -126,6 +150,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                                 <div style={{ width: `${uploadProgress}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500"></div>
                                             </div>
                                         </div>
+                                        <button onClick={() => { if (uploadTask) uploadTask.cancel(); }} className="px-4 py-2 font-semibold text-red-500 bg-white hover:bg-gray-200 rounded-md border border-red-500">
+                                            Cancel Upload
+                                        </button>
                                         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div>
                                     </div>
                                 )
