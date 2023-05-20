@@ -3,6 +3,7 @@ import { getDownloadURL, getStorage, ref, uploadBytesResumable, UploadTask } fro
 import React, { useEffect, useRef, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
 import { app } from '../firebase';
+import ProtectedRoute from './ProtectedRoute';
 
 
 interface LayoutProps {
@@ -192,7 +193,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             Story
                         </button>
                         <button
-                            className={`px-6 py-4 font-semibold rounded-md border border-indigo-500 text-xl ${isExporting ? 'text-white bg-indigo-500' : 'text-indigo-500 bg-white'}`}
+                            className={`px-6 py-4 font-semibold rounded-md border border-indigo-500 text-xl hidden ${isExporting ? 'text-white bg-indigo-500' : 'text-indigo-500 bg-white'}`}
                             onClick={handleClickExport}
                         >
                             Export
@@ -283,4 +284,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
 };
 
-export default Layout;
+const ProtectedLayout: React.FC<LayoutProps> = (props) => (
+    <ProtectedRoute>
+        <Layout {...props} />
+    </ProtectedRoute>
+);
+
+export default ProtectedLayout;
