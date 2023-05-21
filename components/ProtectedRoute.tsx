@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
     useEffect(() => {
         if (!currentUser) {
-            router.push('/landing');
+            router.push('/login');
         }
     }, [currentUser]);
 
