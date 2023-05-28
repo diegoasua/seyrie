@@ -27,7 +27,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen">
+            <div className="absolute left-1/2 p-8">
                 <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div>
             </div>
         );

@@ -1,10 +1,41 @@
+// import { getVideoMetadata } from "@remotion/media-utils";
+// import { Player } from "@remotion/player";
 import axios from 'axios';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable, UploadTask } from 'firebase/storage';
 import React, { useEffect, useRef, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
+// import { delayRender } from "remotion";
 import { app } from '../firebase';
+// import { BaseComposition } from "../remotion/MyComp";
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import Image from 'next/image';
+import { RiScissors2Fill } from 'react-icons/ri';
+import { TbPointer } from 'react-icons/tb';
+import logo from '../public/logo.svg';
 import ProtectedRoute from './ProtectedRoute';
 
+
+interface Notification {
+    title: string;
+    body: string;
+}
+
+interface RulerProps {
+    totalSeconds: number;
+}
+
+interface Payload {
+    notification: Notification;
+}
+
+interface Messaging {
+    getToken: () => Promise<string>;
+    onMessage: (callback: (payload: Payload) => void) => () => void;
+}
+
+// let messaging: Messaging | undefined;
+
+// const { getMessaging } = require('firebase/messaging');
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -22,10 +53,16 @@ const transcribeVideo = async (videoName: string) => {
     }
 };
 
+function formatSeconds(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [videoUrl, setVideoUrl] = useState('');
-    const [videoNameDisplay, setVideoNameDisplay] = useState('altman_lex.mp4');
+    const [videoNameDisplay, setVideoNameDisplay] = useState('');
     const [captionUrl, setCaptionUrl] = useState('');
     const [isExporting, setIsExporting] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -34,8 +71,112 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const currentCaptionUrl = useRef<string | null>(null);
     const [userInput, setUserInput] = useState('');
     const [output, setOutput] = useState('');
+    // const [handle] = useState(() => delayRender());
+    const [duration, setDuration] = useState(1);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [fcmToken, setfcmToken] = useState('');
+    const [thumbnails, setThumbnails] = useState<string[]>([]);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [rulerMarks, setRulerMarks] = useState<number[]>([]);
 
 
+    // useEffect(() => {
+    //     getVideoMetadata(
+    //         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+    //     )
+    //         .then(({ durationInSeconds }) => {
+    //             setDuration(Math.round(durationInSeconds * 30));
+    //             continueRender(handle);
+    //         })
+    //         .catch((err) => {
+    //             console.log(`Error fetching metadata: ${err}`);
+    //         });
+    // }, [handle]);
+
+    useEffect(() => {
+        // Every thumbnail represents one second, so the total length is the number of thumbnails
+        setRulerMarks(Array.from({ length: thumbnails.length }, (_, i) => i));
+    }, [thumbnails]);
+
+    async function requestPermissionAndGetToken(messaging: any) {
+        // FIXME: Why is there a getMessaging call here?
+        // const messaging = getMessaging();
+        try {
+            let token = await getToken(messaging, { vapidKey: 'BIBLfYN7Dd-yL87JiNhxR0O1hK7bvP0AMfq7Ind-2gYav_DUA7dKAS805a86LNvV8_incEA37-RwbYL8in2uygw' });
+            console.log("Registration token:", token);
+            setfcmToken(token);
+        } catch (error) {
+            console.error('Error getting messaging token', error);
+        }
+    }
+
+
+    const handleClickSilentTrim = async () => {
+        // await requestPermissionAndGetToken();
+        setIsProcessing(true);
+        try {
+            console.log("About to send:", fcmToken);
+
+            axios.post(
+                'https://auto-cut-myxlwik5bq-uw.a.run.app/process_video',
+                { filename: videoNameDisplay, fcmToken: fcmToken },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    withCredentials: true
+                }
+            ).then(response => {
+                console.log(response.data);
+            }).catch(error => {
+                console.error(error);
+            });
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    // useEffect(() => {
+    //     if (typeof window !== 'undefined') {
+    //         const { getToken, onMessage } = require('firebase/messaging');
+
+    //         requestPermissionAndGetToken();
+
+    //         onMessage(messaging as Messaging, (payload: Payload) => {
+    //             console.log('Message received:', payload);
+    //             console.log('Notification title:', payload.notification.title);
+    //             console.log('Notification body:', payload.notification.body);
+    //             handleProcessedVideo();
+    //             setIsProcessing(false);
+    //         });
+    //     }
+    // }, []);
+
+    // FIXME: FCM not received
+    useEffect(() => {
+        let messaging = getMessaging(app);
+        // this sets a state token that is passed into backend calls so that they can send FCM push messages
+        requestPermissionAndGetToken(messaging);
+
+        onMessage(messaging, (payload) => {
+            console.log('Message received:', payload);
+            handleProcessedVideo();
+            setIsProcessing(false);
+        });
+    }, []);
+
+    // TODO: Handle background notifications
+    // onBackgroundMessage(messaging, (payload) => {
+    // console.log('Received background message ', payload);
+    // Customize notification here
+    // const notificationTitle = 'Background Message Title';
+    // const notificationOptions = {
+    //     body: 'Background Message body.',
+    //     icon: '/firebase-logo.png'
+    // };
+
+    // self.registration.showNotification(notificationTitle, notificationOptions);
+    // });
 
     useEffect(() => {
         return () => {
@@ -48,32 +189,57 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.stopPropagation();
-        // start of call
-        // axios.post('https://auto-cut-myxlwik5bq-uw.a.run.app/process_video', { filename: 'IMG_0887.mov' }, {
-        //     headers: {
-        //         'Content-Type': 'application/json'
-        //     },
-        //     withCredentials: true
-        // })
-        //     .then(response => {
-        //         console.log(response.data);
-        //     })
-        //     .catch(error => {
-        //         console.error('Error:', error);
-        //     });
-
         if (event.dataTransfer.items && event.dataTransfer.items.length > 0) {
             const file = event.dataTransfer.items[0].getAsFile();
 
-            if (file) { // Check if file is not null
+            if (file) {
                 const url = URL.createObjectURL(file);
-                setVideoUrl(url); // Set local URL immediately
+                setVideoUrl(url);
 
-                // Upload to Firebase Storage
+                // Create a new video element for processing
+                const processingVideoElement = document.createElement('video');
+
+                processingVideoElement.src = url;
+
+                await new Promise(resolve => {
+                    processingVideoElement.onloadedmetadata = resolve;
+                });
+
+                const { duration } = processingVideoElement;
+
+                // Initialize an array to hold the thumbnails
+                const newThumbnails: string[] = [];
+
+                // Create a canvas to draw the video frames onto
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+
+                for (let i = 0; i < duration; i++) {
+                    // Seek to the current second
+                    processingVideoElement.currentTime = i;
+
+                    // Wait for the video to seek to the correct time
+                    await new Promise(resolve => {
+                        processingVideoElement.onseeked = resolve;
+                    });
+
+                    // Draw the current frame onto the canvas
+                    if (context) {
+                        context.drawImage(processingVideoElement, 0, 0, canvas.width, canvas.height);
+                    }
+
+                    // Convert the canvas to a data URL and add it to the thumbnails array
+                    newThumbnails.push(canvas.toDataURL('image/jpeg'));
+                }
+
+                // Update the state
+                setThumbnails(newThumbnails);
+
+                // upload video to cloud
                 const storage = getStorage(app);
                 const storageRef = ref(storage, 'uploads/' + file.name);
 
-                setIsUploading(true); // Start uploading
+                setIsUploading(true);
 
                 const uploadTask = uploadBytesResumable(storageRef, file);
                 setUploadTask(uploadTask);
@@ -93,18 +259,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         } else {
                             console.error('Error uploading file: ', error);
                         }
-                        setIsUploading(false); // Stop uploading
-                        setUploadProgress(0); // Reset progress
-                        setUploadTask(null); // Clear upload task
+                        setIsUploading(false);
+                        setUploadProgress(0);
+                        setUploadTask(null);
                     },
                     async () => {
-                        // Handle successful uploads on complete
                         console.log('Uploaded ', file.name);
                         setVideoNameDisplay(file.name);
                         setIsUploading(false);
                         setUploadProgress(0);
                         setUploadTask(null);
-                        handleProcessedVideo();
+                        // handleProcessedVideo();
                         // transcribeVideo('altman_example_short.mp4');
                     }
                 );
@@ -134,7 +299,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     axios({
                         url: captionUrl,
                         method: 'GET',
-                        responseType: 'blob', // important
+                        responseType: 'blob',
                     }).then((response) => {
                         const localUrl = URL.createObjectURL(new Blob([response.data]));
                         if (currentCaptionUrl.current) {
@@ -153,7 +318,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             } catch (error) {
                 console.error('Error fetching video: ', error);
             }
-        }, 35000); // 35000 milliseconds = 35 seconds
+        }, 35000);
     };
 
     const handleSearch = async () => {
@@ -170,7 +335,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }
     };
 
-
     const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.stopPropagation();
@@ -181,19 +345,52 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const handleClickExport = () => {
         setIsExporting(true);
     }
+
+    const Ruler = ({ totalSeconds }: RulerProps) => {
+        let timeLabels = [];
+        for (let i = 0; i < totalSeconds; i++) {
+            timeLabels.push(
+                <div key={i} className="w-20 h-12 flex justify-center items-center border-r-2 border-gray-300">
+                    {i % 10 === 0 ? (
+                        <span className="text-sm">{new Date(i * 1000).toISOString().substr(14, 5)}</span>
+                    ) : null}
+                </div>
+            )
+        }
+        return <div className="flex overflow-x-auto hide-scrollbar">{timeLabels}</div>
+    }
+
     return (
         <div className="min-h-screen flex flex-col bg-white">
             <header className="bg-white">
-                <div className="mx-auto py-8 px-4">
+                <div className="mx-auto py-2 px-6">
                     <nav className="flex space-x-4">
+                        <div className="flex items-center px-4 py-4">
+                            <Image src={logo} alt="Logo" width={40} height={100} />
+                        </div>
                         <button
-                            className={`px-8 py-4 font-semibold rounded-md border border-indigo-500 text-xl ${isExporting ? 'text-indigo-500 bg-white' : 'text-white bg-indigo-500'}`}
+                            className={`px-8 py-4 rounded-2xl text-xl ${isExporting ? 'text-blue-600 bg-white' : 'text-white bg-blue-600'}`}
                             onClick={handleClickStory}
                         >
                             Story
                         </button>
                         <button
-                            className={`px-6 py-4 font-semibold rounded-md border border-indigo-500 text-xl hidden ${isExporting ? 'text-white bg-indigo-500' : 'text-indigo-500 bg-white'}`}
+                            className={`px-4 py-4 rounded-md text-lg`}
+                        >
+                            Graphics
+                        </button>
+                        <button
+                            className={`px-4 py-4rounded-md text-lg`}
+                        >
+                            Sounds
+                        </button>
+                        <button
+                            className={`px-4 py-4 rounded-md text-lg`}
+                        >
+                            Colors
+                        </button>
+                        <button
+                            className={`px-4 py-4 rounded-md text-lg hidden`}
                             onClick={handleClickExport}
                         >
                             Export
@@ -201,10 +398,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </nav>
                 </div>
             </header>
-            <main className="flex flex-col flex-grow">
+            <main className="">
                 <div className="flex-grow grid grid-cols-[2fr,5fr,2fr]">
-                    <div className="flex items-start flex-col p-4">
-                        <h2 className="text-xl font-semibold mb-4">Seyrie</h2>
+                    <div className="flex items-start flex-col px-8">
+                        <div className="flex items-star py-6">
+                            <h2 className="text-lg font-semibold px-4">Seyrie</h2>
+                            <h2 className="text-lg px-6">Transcript</h2>
+                            <h2 className="text-lg px-6">Assets</h2>
+                        </div>
                         <div className="relative">
                             <FaSearch
                                 onClick={handleSearch}
@@ -214,11 +415,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                 type="text"
                                 value={userInput}
                                 onChange={(e) => setUserInput(e.target.value)}
-                                className="pl-8 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full"
+                                className="pl-8 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-4 focus:ring-indigo-500 w-full"
                                 placeholder="What do you need help with?"
                             />
                             <h4 className="text-lg font-bold mt-6">Try one of these commands</h4>
-                            <p className="mt-4">Cut out silences and filler words</p>
+                            <p className="mt-4 cursor-pointer" onClick={handleClickSilentTrim}>
+                                {isProcessing ? 'Processing...' : 'Cut out silences and filler words'}
+                            </p>
                             <p className="mt-4">Add captions</p>
                             <div className="mt-4">
                                 <p>{output}</p>
@@ -227,18 +430,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         </div>
                     </div>
                     <div>
-                        <div className="flex items-start justify-center p-4 py-14">
-                            <video className="w-full h-auto max-h-full rounded-md shadow-lg" controls src={videoUrl}>
-                                {captionUrl && <track kind="captions"
-                                    src={captionUrl}
-                                    srcLang="en"
-                                    label="English"
-                                    default />}
+                        <div className="flex items-start justify-center p-4 py-20">
+                            <video
+                                ref={videoRef}
+                                className="w-full max-w-lg h-auto max-h-full rounded-md shadow-lg"
+                                controls
+                                src={videoUrl}>
+                                {captionUrl &&
+                                    <track
+                                        kind="captions"
+                                        src={captionUrl}
+                                        srcLang="en"
+                                        label="English"
+                                        default
+                                    />
+                                }
                                 Your browser does not support the video tag.
                             </video>
                         </div>
                     </div>
-                    <div className={`flex items-center justify-center p-4 py-14 ${isExporting || isUploading ? '' : 'invisible'}`}>
+
+                    <div className={`flex items-center justify-center p-4 py-14 ${isExporting || isUploading || isProcessing ? '' : 'invisible'}`}>
                         <nav className="flex flex-col space-y-4">
                             {isUploading
                                 ? (
@@ -257,27 +469,55 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                                         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div>
                                     </div>
                                 )
-                                : (
-                                    <>
-                                        <button className={`px-8 py-4 font-semibold text-indigo-500 bg-white hover:bg-gray-200 rounded-md border border-indigo-500 text-xl ${isExporting ? '' : 'hidden'}`}>
-                                            Export as MP4
-                                        </button>
-                                        <button className={`px-6 py-4 font-semibold text-indigo-500 bg-white hover:bg-gray-200 rounded-md border border-indigo-500 text-xl ${isExporting ? '' : 'hidden'}`}>
-                                            Export to Premiere
-                                        </button>
-                                    </>
-                                )
+                                : isProcessing
+                                    ? (
+                                        <div className="flex flex-col items-center justify-center space-y-4">
+                                            <div className="w-full text-center font-bold text-indigo-500">
+                                                Processing...
+                                            </div>
+                                            <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-indigo-500"></div>
+                                        </div>
+                                    )
+                                    : (
+                                        <>
+                                            <button className={`px-8 py-4 font-semibold text-indigo-500 bg-white hover:bg-gray-200 rounded-md border border-indigo-500 text-xl ${isExporting ? '' : 'hidden'}`}>
+                                                Export as MP4
+                                            </button>
+                                            <button className={`px-6 py-4 font-semibold text-indigo-500 bg-white hover:bg-gray-200 rounded-md border border-indigo-500 text-xl ${isExporting ? '' : 'hidden'}`}>
+                                                Export to Premiere
+                                            </button>
+                                        </>
+                                    )
                             }
                         </nav>
                     </div>
 
                 </div>
-                <div className="items-center justify-center h-32 flex items-start bg-gray-200 relative" onDrop={onDrop} onDragOver={onDragOver}>
-                    <div className="text-center text-4xl font-bold text-gray-500">Drop a video to start editing</div>
-                    {/* <div className="absolute top-0 left-0 bottom-0 w-8 bg-gray-300 border-r-2 border-t-2 border-black flex items-center justify-top flex-col">
+                {/* TODO: make timeline extend until bottom of the page */}
+                <div className="flex flex-col items-center justify-start h-64 bg-gray-400 relative" style={{ backgroundColor: '#333333' }} onDrop={onDrop} onDragOver={onDragOver}>
+                    {videoUrl === '' ? (
+                        <div className="text-center text-2xl font-bold text-gray-500 mb-2">Drop a video to start editing</div>
+                    ) : null}
+                    <div className="absolute top-0 left-0 bottom-0 w-8 bg-gray-300 flex items-center justify-top flex-col" style={{ backgroundColor: '#333333' }}>
                         <TbPointer className="mt-4 mb-2" />
                         <RiScissors2Fill />
-                    </div> */}
+                    </div>
+                    <div className="w-full overflow-x-auto hide-scrollbar justify-top flex flex-col px-32">
+                        <div className="flex mb-10">
+                            {rulerMarks.map((mark, index) => (
+                                <div key={mark} className="flex flex-col" style={{ minWidth: index === 0 ? '0px' : '80px' }}>
+                                    <div className="border-r-2 border-white items-right" style={{ height: index % 10 === 0 ? '20px' : '10px' }} />
+                                    {index === 0 ? <span className="text-xs text-left -translate-x-4" style={{ color: '#FFFFFF' }}>{formatSeconds(mark)}</span> : null}
+                                    {index % 10 === 0 && index !== 0 ? <span className="text-xs text-right px-16" style={{ color: '#FFFFFF' }}>{formatSeconds(mark)}</span> : null}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="thumbnails flex">
+                            {thumbnails.map((thumbnail, index) => (
+                                <img key={index} src={thumbnail} alt={`Thumbnail ${index + 1}`} className="w-20 h-12 object-cover" />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>

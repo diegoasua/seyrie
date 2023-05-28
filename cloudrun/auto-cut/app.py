@@ -1,7 +1,10 @@
+import logging as log
 import os
 from typing import Dict, List, Tuple
 
+import firebase_admin
 import numpy as np
+from firebase_admin import credentials, initialize_app, messaging
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from google.cloud import storage
@@ -19,7 +22,19 @@ CUT = ["silent"]
 
 
 app = Flask(__name__)
-CORS(app, origins="https://app.seyrie.com")
+CORS(
+    app,
+    resources={r"/*": {"origins": "https://app.seyrie.com"}},
+    supports_credentials=True,
+)
+
+
+def initialize_firebase():
+    try:
+        firebase_admin.get_app()
+    except:
+        cred = credentials.ApplicationDefault()
+        initialize_app(cred)
 
 
 def download_blob(bucket_name, source_blob_name, destination_file_name):
@@ -161,10 +176,24 @@ class Audio:
         return intervals_to_cut
 
 
+@app.after_request
+def after_request(response):
+    header = response.headers
+    header["Access-Control-Allow-Origin"] = "https://app.seyrie.com"
+    header["Access-Control-Allow-Headers"] = "Content-Type"
+    header["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+
 @app.route("/process_video", methods=["POST"])
 def process_video():
     data = request.get_json()
     video_filename = data["filename"]
+    try:
+        fcm_token = data["fcmToken"]
+        notify = True
+    except:
+        notify = False
     input_path = "/tmp/" + video_filename
     output_path = "/tmp/" + "processed_" + video_filename
 
@@ -183,14 +212,33 @@ def process_video():
         FAILURE_TOLERANCE_RATIO,
         SPACE_ON_EDGES,
     )
+    print(f"Starting video and audio encoding, multiplexing. This may take long...")
     for cut_type, jumpcutted_clip in outputs.items():
-        jumpcutted_clip.write_videofile(str(output_path), codec=codec, bitrate=bitrate)
+        jumpcutted_clip.write_videofile(
+            str(output_path),
+            codec=codec,
+            bitrate=bitrate,
+            threads=16,
+            logger=None,
+        )
+    print(f"Encoding and multiplexing finished succesfully")
 
     upload_blob(
         "potent-pursuit-386804.appspot.com",
         output_path,
         "uploads/" + "processed_" + video_filename,
     )
+    initialize_firebase()
+    if notify:
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title="Your video is ready!",
+                body="Click to open the application.",
+            ),
+            token=fcm_token,
+        )
+        response = messaging.send(message)
+        print("Successfully sent message:", response)
 
     return jsonify({"message": "Video processed successfully"}), 200
 

@@ -1,9 +1,10 @@
 import React from 'react';
-import Layout from '../components/Layout';
+import ProtectedLayout from '../components/Layout';
+
 
 const Index: React.FC = () => {
   return (
-    <Layout>
+    <ProtectedLayout>
       <div className="h-full grid grid-rows-layout">
         <div className="row-span-5 bg-blue-200 grid grid-cols-2">
           <div className="col-span-1 bg-red-200 flex items-center justify-center">
@@ -17,7 +18,7 @@ const Index: React.FC = () => {
           <p className="text-2xl font-bold">Last Row</p>
         </div>
       </div>
-    </Layout>
+    </ProtectedLayout>
   );
 };
 
