@@ -1,4 +1,4 @@
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragMoveEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import React, { useEffect, useState } from 'react';
 
@@ -32,7 +32,7 @@ interface VideoDropAreaProps {
     formatSeconds: (seconds: number) => string;
 }
 
-const DraggableVideo: React.FC<{ id: string, videoUrl: string, thumbnails: string[], index: number, selectedVideoIndex: number | null, setVideoUrl: (url: string) => void, setSelectedVideoIndex: (index: number | null) => void }> = ({ id, videoUrl, thumbnails = [], index, selectedVideoIndex, setVideoUrl, setSelectedVideoIndex }) => {
+const DraggableVideo: React.FC<{ id: string, videoUrl: string, thumbnails: string[], index: number, selectedVideoIndex: number | null, setVideoUrl: (url: string) => void, setSelectedVideoIndex: (index: number | null) => void, startPosition: number }> = ({ id, videoUrl, thumbnails = [], index, selectedVideoIndex, setVideoUrl, setSelectedVideoIndex, startPosition }) => {
     const { attributes, listeners, setNodeRef, transform } = useDraggable({ id });
 
     return (
@@ -42,11 +42,11 @@ const DraggableVideo: React.FC<{ id: string, videoUrl: string, thumbnails: strin
             {...attributes}
             className={`thumbnails flex my-1 rounded-l-lg cursor-pointer relative ${selectedVideoIndex === index ? 'border-4' : ''}`}
             style={{
-                ...transform ? { transform: CSS.Translate.toString(transform) } : {},
+                transition: 'transform 0.2s ease',
+                ...transform ? { transform: `translateX(${startPosition}px) ${CSS.Translate.toString(transform)}` } : { transform: `translateX(${startPosition}px)` },
                 ...(selectedVideoIndex === index ? { borderColor: '#848484' } : {})
             }}
             onClick={() => {
-                // Only change the displayed video for the first track
                 if (index === 0) {
                     setVideoUrl(videoUrl);
                 }
@@ -57,14 +57,39 @@ const DraggableVideo: React.FC<{ id: string, videoUrl: string, thumbnails: strin
             ))}
         </div>
     )
-
 }
+
+
 
 const VideoDropArea: React.FC<VideoDropAreaProps> = ({ onDrop, onDragOver, videoUrls, thumbnails, selectedVideoIndex, setSelectedVideoIndex, setVideoUrl, rulerMarks, formatSeconds }) => {
     const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
 
     // Initialize videos state
     const [videos, setVideos] = useState(videoUrls.map((url, index) => ({ id: index.toString(), url, thumbnails: thumbnails[index] })));
+    const [startPositions, setStartPositions] = useState<number[]>(videoUrls.map(() => 0));
+
+    useEffect(() => {
+        setStartPositions(videoUrls.map(() => 0));
+    }, [videoUrls]);
+
+    const handleDragMove = (event: DragMoveEvent) => {
+        const { id } = event.active;
+        const deltaX = event.delta.x;
+
+        const scalingFactor = 0.05;  // Reduce or increase this to change sensitivity
+
+
+        if (typeof id === "string") {
+            const index = parseInt(id, 10);
+
+            setStartPositions(prevPositions => {
+                const newPositions = [...prevPositions];
+                newPositions[index] += deltaX * scalingFactor;
+                return newPositions;
+            });
+        }
+    };
+
 
     useEffect(() => {
         setVideos(videoUrls.map((url, index) => ({ id: index.toString(), url, thumbnails: thumbnails[index] })));
@@ -94,7 +119,7 @@ const VideoDropArea: React.FC<VideoDropAreaProps> = ({ onDrop, onDragOver, video
     };
 
     return (
-        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragMove={handleDragMove}>
             <div className="text-center text-2xl font-bold text-gray-500 mb-2 bg-gray-400 relative" style={{ backgroundColor: '#ededed' }} onDrop={onDrop} onDragOver={onDragOver}>
                 {videoUrls.length === 0 && "Drop a video to start editing"}
                 <div className="absolute top-0 left-0 bottom-0 w-16 bg-gray-300 flex items-center justify-top flex-col" style={{ backgroundColor: '#ededed' }}>
@@ -112,15 +137,34 @@ const VideoDropArea: React.FC<VideoDropAreaProps> = ({ onDrop, onDragOver, video
                     {videos.map((video, index) => {
                         return (
                             <DroppableArea key={video.id} id={video.id}>
-                                <DraggableVideo id={video.id} videoUrl={video.url} thumbnails={video.thumbnails} index={index} selectedVideoIndex={selectedVideoIndex} setVideoUrl={setVideoUrl} setSelectedVideoIndex={setSelectedVideoIndex} />
+                                <DraggableVideo
+                                    id={video.id}
+                                    videoUrl={video.url}
+                                    thumbnails={video.thumbnails}
+                                    index={index}
+                                    selectedVideoIndex={selectedVideoIndex}
+                                    setVideoUrl={setVideoUrl}
+                                    setSelectedVideoIndex={setSelectedVideoIndex}
+                                    startPosition={startPositions[index]}
+                                />
                             </DroppableArea>
                         );
                     })}
                     <DragOverlay>
                         {draggingItemId ? (
-                            <DraggableVideo id={draggingItemId} videoUrl={videoUrls[draggingItemId]} thumbnails={thumbnails[draggingItemId]} index={draggingItemId} selectedVideoIndex={selectedVideoIndex} setVideoUrl={setVideoUrl} setSelectedVideoIndex={setSelectedVideoIndex} />
+                            <DraggableVideo
+                                id={draggingItemId}
+                                videoUrl={videoUrls[parseInt(draggingItemId)]}
+                                thumbnails={thumbnails[parseInt(draggingItemId)]}
+                                index={parseInt(draggingItemId)}
+                                selectedVideoIndex={selectedVideoIndex}
+                                setVideoUrl={setVideoUrl}
+                                setSelectedVideoIndex={setSelectedVideoIndex}
+                                startPosition={startPositions[parseInt(draggingItemId)]}
+                            />
                         ) : null}
                     </DragOverlay>
+
                 </div>
             </div>
         </DndContext>
