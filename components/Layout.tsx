@@ -9,10 +9,10 @@ import { app } from '../firebase';
 // import { BaseComposition } from "../remotion/MyComp";
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import Image from 'next/image';
-import { RiScissors2Fill } from 'react-icons/ri';
-import { TbPointer } from 'react-icons/tb';
 import logo from '../public/logo.svg';
 import ProtectedRoute from './ProtectedRoute';
+import VideoDropArea from './VideoTimeline';
+
 
 
 interface Notification {
@@ -59,7 +59,6 @@ function formatSeconds(seconds: number): string {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-
 const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [videoUrl, setVideoUrl] = useState('');
     const [videoNameDisplay, setVideoNameDisplay] = useState('');
@@ -75,9 +74,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [duration, setDuration] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
     const [fcmToken, setfcmToken] = useState('');
-    const [thumbnails, setThumbnails] = useState<string[]>([]);
     const videoRef = useRef<HTMLVideoElement>(null);
     const [rulerMarks, setRulerMarks] = useState<number[]>([]);
+    const [videoUrls, setVideoUrls] = useState<string[]>([]);
+    const [thumbnails, setThumbnails] = useState<string[][]>([]);
+    const [selectedVideoIndex, setSelectedVideoIndex] = useState<number | null>(null);
 
 
     // useEffect(() => {
@@ -94,9 +95,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // }, [handle]);
 
     useEffect(() => {
-        // Every thumbnail represents one second, so the total length is the number of thumbnails
-        setRulerMarks(Array.from({ length: thumbnails.length }, (_, i) => i));
+        // Calculate the length of the longest video
+        const longestVideoLength = Math.max(...thumbnails.map(t => t.length));
+
+        // The total length is the length of the longest video
+        setRulerMarks(Array.from({ length: longestVideoLength }, (_, i) => i));
     }, [thumbnails]);
+
+
 
     async function requestPermissionAndGetToken(messaging: any) {
         // FIXME: Why is there a getMessaging call here?
@@ -135,6 +141,50 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             console.error('Error:', error);
         }
     }
+
+    const deleteVideoTrack = () => {
+        // ensure a track is selected
+        if (selectedVideoIndex !== null) {
+            // filter out the selected track
+            const newVideoUrls = videoUrls.filter((_, index) => index !== selectedVideoIndex);
+            const newThumbnails = thumbnails.filter((_, index) => index !== selectedVideoIndex);
+
+            // update state
+            setVideoUrls(newVideoUrls);
+            setThumbnails(newThumbnails);
+
+            // If videoUrl was pointing to the deleted video, reset it
+            if (videoUrls[selectedVideoIndex] === videoUrl) {
+                setVideoUrl('');
+            }
+
+            // if there's still at least one video track, select the first one
+            if (newVideoUrls.length > 0) {
+                setSelectedVideoIndex(0);
+                setVideoUrl(newVideoUrls[0]);
+            } else {
+                // else, reset selectedVideoIndex
+                setSelectedVideoIndex(null);
+            }
+        }
+    }
+
+
+    useEffect(() => {
+        const handleDelete = (event: KeyboardEvent) => {
+            if (event.key === 'Delete' || event.key === 'Backspace') {
+                deleteVideoTrack();
+            }
+        };
+
+        window.addEventListener('keydown', handleDelete);
+
+        // Clean up function
+        return () => {
+            window.removeEventListener('keydown', handleDelete);
+        };
+    }, [selectedVideoIndex, videoUrls, thumbnails, videoUrl]); // added videoUrl to the dependency array
+
 
     // useEffect(() => {
     //     if (typeof window !== 'undefined') {
@@ -194,7 +244,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             if (file) {
                 const url = URL.createObjectURL(file);
-                setVideoUrl(url);
+                setVideoUrls(prev => [...prev, url]);
+
+                // Display the video only if it's the first track
+                if (videoUrls.length === 0) {
+                    setVideoUrl(url);
+                }
 
                 // Create a new video element for processing
                 const processingVideoElement = document.createElement('video');
@@ -233,7 +288,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 }
 
                 // Update the state
-                setThumbnails(newThumbnails);
+                setThumbnails(prev => [...prev, newThumbnails]);
 
                 // upload video to cloud
                 const storage = getStorage(app);
@@ -494,33 +549,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
                 </div>
                 {/* TODO: make timeline extend until bottom of the page */}
-                <div className="flex flex-col items-center justify-start h-64 bg-gray-400 relative" style={{ backgroundColor: '#333333' }} onDrop={onDrop} onDragOver={onDragOver}>
-                    {videoUrl === '' ? (
-                        <div className="text-center text-2xl font-bold text-gray-500 mb-2">Drop a video to start editing</div>
-                    ) : null}
-                    <div className="absolute top-0 left-0 bottom-0 w-8 bg-gray-300 flex items-center justify-top flex-col" style={{ backgroundColor: '#333333' }}>
-                        <TbPointer className="mt-4 mb-2" />
-                        <RiScissors2Fill />
-                    </div>
-                    <div className="w-full overflow-x-auto hide-scrollbar justify-top flex flex-col px-32">
-                        <div className="flex mb-10">
-                            {rulerMarks.map((mark, index) => (
-                                <div key={mark} className="flex flex-col" style={{ minWidth: index === 0 ? '0px' : '80px' }}>
-                                    <div className="border-r-2 border-white items-right" style={{ height: index % 10 === 0 ? '20px' : '10px' }} />
-                                    {index === 0 ? <span className="text-xs text-left -translate-x-4" style={{ color: '#FFFFFF' }}>{formatSeconds(mark)}</span> : null}
-                                    {index % 10 === 0 && index !== 0 ? <span className="text-xs text-right px-16" style={{ color: '#FFFFFF' }}>{formatSeconds(mark)}</span> : null}
-                                </div>
-                            ))}
-                        </div>
-                        <div className="thumbnails flex">
-                            {thumbnails.map((thumbnail, index) => (
-                                <img key={index} src={thumbnail} alt={`Thumbnail ${index + 1}`} className="w-20 h-12 object-cover" />
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
+                <VideoDropArea
+                    onDrop={onDrop}
+                    onDragOver={onDragOver}
+                    videoUrls={videoUrls}
+                    thumbnails={thumbnails}
+                    selectedVideoIndex={selectedVideoIndex}
+                    setSelectedVideoIndex={setSelectedVideoIndex}
+                    setVideoUrl={setVideoUrl}
+                    rulerMarks={rulerMarks}
+                    formatSeconds={formatSeconds}
+                />
+            </main >
+        </div >
     );
 };
 
