@@ -42,4 +42,3 @@ const chatgpt = async function (req, res) {
 };
 
 module.exports = { chatgpt };
-
